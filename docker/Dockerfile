@@ -1,51 +1,36 @@
 FROM ubuntu:16.04
 
-LABEL image=opnfv/yardstick
+LABEL image=rexlee8776/yardstick-image
 
 ARG BRANCH=master
 
 # GIT repo directory
-ENV REPOS_DIR="/home/opnfv/repos" \
-    IMAGE_DIR="/home/opnfv/images/"
+ENV CLONE_DEST="/opt/tempT"
 
-# Set work directory
 
-# Yardstick repo
-ENV YARDSTICK_REPO_DIR="${REPOS_DIR}/yardstick/" \
-    RELENG_REPO_DIR="${REPOS_DIR}/releng" \
-    STORPERF_REPO_DIR="${REPOS_DIR}/storperf"
+# RUN echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+# RUN echo "nameserver 8.8.4.4" >> /etc/resolv.conf
 
-RUN apt-get update && apt-get install -y git python python-setuptools python-pip iputils-ping && apt-get -y autoremove && apt-get clean
-RUN easy_install -U setuptools==30.0.0
-RUN pip install appdirs==1.4.0 pyopenssl==17.5.0 python-openstackclient==3.12.0 python-heatclient==1.11.0 ansible==2.5.5
 
-RUN mkdir -p ${REPOS_DIR}
+RUN apt-get update && apt-get install -y \
+  git bc bonnie++ fio gcc iperf3 ethtool \
+  iproute2 linux-tools-common linux-tools-generic \
+  lmbench make netperf patch perl rt-tests stress \
+  sysstat iputils-ping openssh-server sudo
 
-RUN git config --global http.sslVerify false
-#For developers: To test your changes you must comment out the git clone for ${YARDSTICK_REPO_DIR}.
-#You must also uncomment the RUN and COPY commands below.
-#You must run docker build from your yardstick directory on the host.
-RUN git clone --depth 1 -b $BRANCH https://gerrit.opnfv.org/gerrit/yardstick ${YARDSTICK_REPO_DIR}
-#RUN mkdir ${YARDSTICK_REPO_DIR}
-#COPY ./ ${YARDSTICK_REPO_DIR}
-RUN git clone --depth 1 https://gerrit.opnfv.org/gerrit/releng ${RELENG_REPO_DIR}
-RUN git clone --depth 1 -b $BRANCH https://gerrit.opnfv.org/gerrit/storperf ${STORPERF_REPO_DIR}
+RUN rm -rf -- ${CLONE_DEST}
+RUN git clone https://github.com/kdlucas/byte-unixbench.git ${CLONE_DEST}
+RUN mkdir -p ${CLONE_DEST}/UnixBench/
 
-RUN ansible-playbook -i ${YARDSTICK_REPO_DIR}/ansible/install-inventory.ini -c local -vvv -e INSTALLATION_MODE="container" ${YARDSTICK_REPO_DIR}/ansible/install.yaml
+RUN git clone https://github.com/beefyamoeba5/ramspeed.git ${CLONE_DEST}/RAMspeed
+WORKDIR ${CLONE_DEST}/RAMspeed/ramspeed-2.6.0
+RUN mkdir -p ${CLONE_DEST}/RAMspeed/ramspeed-2.6.0/temp
+RUN bash build.sh
 
-RUN ${YARDSTICK_REPO_DIR}/docker/supervisor.sh
+RUN git clone https://github.com/beefyamoeba5/cachestat.git ${CLONE_DEST}/Cachestat
 
-RUN echo "daemon off;" >> /etc/nginx/nginx.conf
-# nginx=5000, rabbitmq=5672
-EXPOSE 5000 5672
+# restore symlink
+# RUN ln -sf /run/resolvconf/resolv.conf /etc/resolv.conf
 
-ADD http://download.cirros-cloud.net/0.3.5/cirros-0.3.5-x86_64-disk.img ${IMAGE_DIR}
-ADD http://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img ${IMAGE_DIR}
+CMD /bin/bash
 
-COPY ./exec_tests.sh /usr/local/bin/
-
-ENV NSB_DIR="/opt/nsb_bin"
-ENV PYTHONPATH="${PYTHONPATH}:${NSB_DIR}/trex_client:${NSB_DIR}/trex_client/stl"
-
-WORKDIR ${REPOS_DIR}
-CMD ["/usr/bin/supervisord"]
