@@ -1,0 +1,6 @@
+- job:
+    name: test_rex
+    description: 'A test'
+    project-type: freestyle
+    builders:
+      - shell: 'ls'
