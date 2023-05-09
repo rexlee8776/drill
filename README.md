@@ -1,2 +1,2 @@
 # drill
-drill project is for drill.
+drill project is a collection of useful configs.
